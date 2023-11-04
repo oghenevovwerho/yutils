@@ -4,6 +4,7 @@ import com.maximeroussy.invitrode.WordGenerator;
 
 import javax.lang.model.SourceVersion;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -18,13 +19,14 @@ import static java.nio.file.Path.of;
 
 public class Yutils {
   private static final String options = """        
-             1 -> create a new project
+             1 -> create new project
              2 -> check Yaa version
+             3 -> check if JDK is installed
       """;
 
   public static void main(String[] args) {
     var intended = "";
-    var validOptions = Set.of("1", "2");
+    var validOptions = Set.of("1", "2", "3");
     while (true) {
       out.print(options);
       out.print("[INFO] enter one of the options given above: ");
@@ -35,13 +37,24 @@ public class Yutils {
       }
     }
     switch (intended.strip()) {
+      case "3" -> {
+        ProcessBuilder builder = new ProcessBuilder("java");
+        try {
+          builder.start().destroy();
+        } catch (IOException e) {
+          out.println("       There is no JDK installed on the system");
+          System.exit(0);
+        }
+        out.println("       A valid JDK is installed on the system");
+      }
       case "1" -> {
-        String projectName = "";
+        String projectName;
         WordGenerator generator = new WordGenerator();
         var randomNumber = new Random(System.nanoTime());
         var first_word = generator.newWord(randomNumber.nextInt(5, 10)).toLowerCase(Locale.UK);
         var second_word = generator.newWord(randomNumber.nextInt(5, 10)).toLowerCase(Locale.UK);
         var defaultName = first_word + "_" + second_word;
+        outer:
         while (true) {
           out.print("       what would you like to call your project? (" + defaultName + "): ");
           projectName = System.console().readLine();
@@ -62,17 +75,32 @@ public class Yutils {
             );
             continue;
           }
-          if (!SourceVersion.isIdentifier(projectName)) {
-            out.println(
-                "------ only valid Yaa identifiers can be used as project names"
-            );
-            continue;
-          }
           if (SourceVersion.isKeyword(projectName)) {
             out.println(
                 "------ Java keywords cannot be used as project names"
             );
             continue;
+          }
+          if (!Character.isAlphabetic(projectName.charAt(0))) {
+            out.println(
+                "------ all project names must start with a valid character"
+            );
+            continue;
+          }
+          if (projectName.length() == 1) {
+            out.println(
+                "------ a single letter cannot be used as a project name"
+            );
+            continue;
+          }
+          for (int i = 1; i < projectName.length(); i++) {
+            if (!acceptableInProjectName(projectName.charAt(i))) {
+              out.println(
+                  "------ the character " + projectName.charAt(i) + " at " + i
+                      + " is not acceptable in a project's name"
+              );
+              continue outer;
+            }
           }
           var existingInfo = checkIfNameAlreadyExists(projectName);
           if (existingInfo == null) {
@@ -82,12 +110,38 @@ public class Yutils {
                 + " at " + existingInfo.fileIndex);
           }
         }
-        String about = projectName + " will change the world for good!";
-        out.print("       what is " + projectName + " all about: ");
+        String about = projectName + " stands for equity and justice!";
+        out.print("       what is " + projectName + " all about? (" + about + "): ");
         var consoleAbout = System.console().readLine();
         if (!consoleAbout.isBlank()) {
           about = consoleAbout;
         }
+
+        String license;
+
+        main:
+        while (true) {
+          out.println("       1 -> MIT");
+          out.println("       2 -> Apache 2.0");
+          out.println("       3 -> GNU 3.0");
+          out.print("[INFO] Chose a license from the list above: (MIT" + ") ");
+          var consoleLicense = System.console().readLine().trim();
+          switch (consoleLicense) {
+            case "1", "" -> {
+              license = MIT.mitLicense;
+              break main;
+            }
+            case "2" -> {
+              license = APACHE.apache2License;
+              break main;
+            }
+            case "3" -> {
+              license = GNU.gnu3License;
+              break main;
+            }
+          }
+        }
+
         try {
           createDirectories(of(getProperty("user.dir") + separator + projectName));
 
@@ -123,6 +177,9 @@ public class Yutils {
           var pom_file = new File(of(getProperty("user.dir") + separator + projectName
               + separator + "pom.xml").toUri());
 
+          var license_file = new File(of(getProperty("user.dir") + separator + projectName
+              + separator + "LICENSE.txt").toUri());
+
           var readme_file = new File(
               of(getProperty("user.dir") + separator + projectName
                   + separator + "README.md").toUri()
@@ -135,6 +192,7 @@ public class Yutils {
 
           Files.writeString(readme_file.toPath(), readmeString(new ReadMeContent(projectName, about)));
           Files.writeString(pom_file.toPath(), pomContent(projectName));
+          Files.writeString(license_file.toPath(), license);
 
           var main_file = new File(
               of(getProperty("user.dir") + separator + projectName
@@ -159,6 +217,13 @@ public class Yutils {
         out.println("The Yaa Programming language: " + date);
       }
     }
+  }
+
+  private static boolean acceptableInProjectName(char charInProject) {
+    if (charInProject == '-' || charInProject == '_') {
+      return true;
+    }
+    return Character.isLetterOrDigit(charInProject);
   }
 
   private static class CheckReturnInfo {
@@ -259,15 +324,15 @@ public class Yutils {
         "          </arguments>\n" +
         "        </configuration>\n" +
         "      </plugin>\n" +
-        "      <plugin>" +
-        "        <artifactId>maven-surefire-plugin</artifactId>" +
-        "        <version>2.22.2</version>" +
-        "      </plugin>" +
-        "      <plugin>" +
-        "      <groupId>org.apache.maven.plugins</groupId>" +
-        "        <artifactId>maven-failsafe-plugin</artifactId>" +
-        "        <version>3.2.1</version>" +
-        "      </plugin>" +
+        "      <plugin>\n" +
+        "        <artifactId>maven-surefire-plugin</artifactId>\n" +
+        "        <version>2.22.2</version>\n" +
+        "      </plugin>\n" +
+        "      <plugin>\n" +
+        "      <groupId>org.apache.maven.plugins</groupId>\n" +
+        "        <artifactId>maven-failsafe-plugin</artifactId>\n" +
+        "        <version>3.2.1</version>\n" +
+        "      </plugin>\n" +
         "    </plugins>\n" +
         "  </build>\n" +
         "</project>";
